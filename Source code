@@ -1,0 +1,133 @@
+let inputImage;
+let grayImage;
+let stretchedImage;
+let equalizedImage;
+
+function preload() {
+  // 이미지 파일을 preload() 함수를 사용하여 로드합니다.
+  inputImage = loadImage('tree.jpg'); // 이미지 파일 경로를 입력하세요.
+}
+
+function setup() {
+  createCanvas(1550, 1000);
+  textSize(15);
+  text('Original',0,530);
+  text('Gray',390,530);
+  text('StretchedImage',780,530);
+  text('EqualizedImage',1165,530);
+  // 입력 이미지를 흑백으로 변경합니다.
+  grayImage = createImage(inputImage.width, inputImage.height);
+  inputImage.loadPixels();
+  grayImage.loadPixels();
+  for (let x = 0; x < inputImage.width; x++) {
+    for (let y = 0; y < inputImage.height; y++) {
+      const index = (x + y * inputImage.width) * 4;
+      const r = inputImage.pixels[index];
+      const g = inputImage.pixels[index + 1];
+      const b = inputImage.pixels[index + 2];
+      const gray = (r + g + b) / 3; // 간단한 평균 그레이스케일 변환
+      grayImage.pixels[index] = gray;
+      grayImage.pixels[index + 1] = gray;
+      grayImage.pixels[index + 2] = gray;
+      grayImage.pixels[index + 3] = 255; // 알파 채널
+    }
+  }
+  grayImage.updatePixels();
+
+  // 히스토그램 그리기
+  drawHistogram(inputImage, 0);
+  drawHistogram(grayImage, inputImage.width);
+ 
+  // 히스토그램 스트레칭 적용
+  stretchedImage = stretchHistogram(grayImage);
+  drawHistogram(stretchedImage, inputImage.width * 2,500);
+  image(stretchedImage, inputImage.width * 2, 260);
+
+  // 히스토그램 평활화 적용
+  equalizedImage = equalizeHistogram(grayImage);
+  drawHistogram(equalizedImage, inputImage.width * 3);
+  image(equalizedImage, inputImage.width * 3, 260);
+}
+
+function draw() {
+  // 원본 이미지와 히스토그램 처리된 이미지를 그립니다.
+  image(inputImage, 0, 260);
+  image(grayImage, inputImage.width, 260);
+}
+
+function drawHistogram(img, xOffset) {
+  // 히스토그램 그리기
+  const histogram = getHistogram(img);
+  const maxCount = max(histogram);
+
+  for (let i = 0; i < histogram.length; i++) {
+    const x = i + xOffset;
+    const y = img.height;
+    const barHeight = map(histogram[i], 0, maxCount, 0, img.height);
+    stroke(0);
+    line(x, y, x, y - barHeight);
+  }
+}
+
+function getHistogram(img) {
+  // 이미지의 히스토그램 계산
+  const histogram = new Array(256).fill(0);
+  img.loadPixels();
+  for (let x = 0; x < img.width; x++) {
+    for (let y = 0; y < img.height; y++) {
+      const index = (x + y * img.width) * 4;
+      const grayValue = img.pixels[index];
+      histogram[grayValue]++;
+    }
+  }
+  return histogram;
+}
+
+function stretchHistogram(img) {
+  // 히스토그램 스트레칭 적용
+  const stretched = createImage(img.width, img.height);
+  const histogram = getHistogram(img);
+  const minGray = histogram.findIndex(count => count > 0);
+  const maxGray = histogram.length - 1 - histogram.reverse().findIndex(count => count > 0);
+  img.loadPixels();
+  stretched.loadPixels();
+  for (let x = 0; x < img.width; x++) {
+    for (let y = 0; y < img.height; y++) {
+      const index = (x + y * img.width) * 4;
+      const grayValue = img.pixels[index];
+      const stretchedValue = map(grayValue, minGray, maxGray, 0, 255);
+      stretched.pixels[index] = stretchedValue;
+      stretched.pixels[index + 1] = stretchedValue;
+      stretched.pixels[index + 2] = stretchedValue;
+      stretched.pixels[index + 3] = 255;
+    }
+  }
+  stretched.updatePixels();
+  return stretched;
+}
+
+function equalizeHistogram(img) {
+  // 히스토그램 평활화 적용
+  const equalized = createImage(img.width, img.height);
+  const histogram = getHistogram(img);
+  const cumulativeHistogram = Array.from(histogram);
+  for (let i = 1; i < cumulativeHistogram.length; i++) {
+    cumulativeHistogram[i] += cumulativeHistogram[i - 1];
+  }
+  const totalPixels = img.width * img.height;
+  img.loadPixels();
+  equalized.loadPixels();
+  for (let x = 0; x < img.width; x++) {
+    for (let y = 0; y < img.height; y++) {
+      const index = (x + y * img.width) * 4;
+      const grayValue = img.pixels[index];
+      const equalizedValue = map(cumulativeHistogram[grayValue], 0, totalPixels, 0, 255);
+      equalized.pixels[index] = equalizedValue;
+      equalized.pixels[index + 1] = equalizedValue;
+      equalized.pixels[index + 2] = equalizedValue;
+      equalized.pixels[index + 3] = 255;
+    }
+  }
+  equalized.updatePixels();
+  return equalized;
+}
